@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from flask import Flask, render_template, request, jsonify, send_file
 
-# Configurações do Flask
+# Configuração do Flask
 app = Flask(__name__)
 
 # Caminho do arquivo para persistência de dados
@@ -13,7 +13,6 @@ initial_data = [
     {"Região": "ZONA DA MATA", "Loja": 97, "Nome": "Viçosa", "PDV": "não tem cx", "Operador": "Operador 1"},
     {"Região": "OURO PRETO", "Loja": 15, "Nome": "Ponte Nova", "PDV": "16", "Operador": "Operador 2"},
     {"Região": "CARATINGA", "Loja": 44, "Nome": "Inhapim", "PDV": "6", "Operador": "Operador 3"},
-    # Adicione mais dados conforme necessário...
 ]
 
 # Criar o arquivo com dados iniciais, se não existir
@@ -32,53 +31,18 @@ def index():
 def adicionar():
     try:
         data = request.get_json()
-        novo_dado = pd.DataFrame([{  # Criar um DataFrame temporário para os novos dados
-            "Região": data.get("regiao"),
-            "Loja": data.get("loja"),
-            "Nome": data.get("nome"),
-            "PDV": data.get("pdv"),
-            "Operador": data.get("operador", "")
+        novo_dado = pd.DataFrame([{
+            "Região": data.get("regiao", "").strip(),
+            "Loja": str(data.get("loja")).strip(),
+            "Nome": data.get("nome", "").strip(),
+            "PDV": data.get("pdv", "").strip(),
+            "Operador": data.get("operador", "").strip()
         }])
-        
+
         df = pd.read_excel(data_file, engine="openpyxl")
-        df = pd.concat([df, novo_dado], ignore_index=True)  # Substituir append por concat
+        df = pd.concat([df, novo_dado], ignore_index=True)
         df.to_excel(data_file, index=False, engine="openpyxl")
         return jsonify({"status": "success", "message": "Dados adicionados com sucesso."})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/excluir', methods=['POST'])
-def excluir():
-    try:
-        data = request.get_json()
-        loja = data.get("loja")
-
-        if loja is None:
-            return jsonify({"status": "error", "message": "O campo 'loja' é obrigatório."}), 400
-
-        # Carregar dados existentes
-        df = pd.read_excel(data_file, engine="openpyxl")
-
-        # Verificar se a loja existe
-        if loja not in df["Loja"].values:
-            return jsonify({"status": "error", "message": "Loja não encontrada."}), 404
-
-        # Excluir a linha correspondente
-        df = df[df["Loja"] != loja]
-        df.to_excel(data_file, index=False, engine="openpyxl")
-
-        return jsonify({"status": "success", "message": "Dados excluídos com sucesso."})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/excluir_tudo', methods=['POST'])
-def excluir_tudo():
-    try:
-        # Criar um DataFrame vazio com as mesmas colunas
-        df = pd.DataFrame(columns=["Região", "Loja", "Nome", "PDV", "Operador"])
-        df.to_excel(data_file, index=False, engine="openpyxl")
-
-        return jsonify({"status": "success", "message": "Todos os dados foram excluídos."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -86,24 +50,52 @@ def excluir_tudo():
 def editar():
     try:
         data = request.get_json()
-        loja = data.get("loja")
+        loja = str(data.get("loja")).strip()
 
-        if loja is None:
+        if not loja:
             return jsonify({"status": "error", "message": "O campo 'loja' é obrigatório."}), 400
 
-        # Atualizar os dados correspondentes à loja
         df = pd.read_excel(data_file, engine="openpyxl")
+        df["Loja"] = df["Loja"].astype(str).str.strip()
+
         if loja not in df["Loja"].values:
             return jsonify({"status": "error", "message": "Loja não encontrada."}), 404
 
         df.loc[df["Loja"] == loja, ["Região", "Nome", "PDV", "Operador"]] = [
-            data.get("regiao"),
-            data.get("nome"),
-            data.get("pdv"),
-            data.get("operador")
+            data.get("regiao", "").strip(),
+            data.get("nome", "").strip(),
+            data.get("pdv", "").strip(),
+            data.get("operador", "").strip()
         ]
         df.to_excel(data_file, index=False, engine="openpyxl")
         return jsonify({"status": "success", "message": "Dados editados com sucesso."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/excluir', methods=['POST'])
+def excluir():
+    try:
+        data = request.get_json()
+        loja = str(data.get("loja")).strip()
+
+        df = pd.read_excel(data_file, engine="openpyxl")
+        df["Loja"] = df["Loja"].astype(str).str.strip()
+
+        if loja not in df["Loja"].values:
+            return jsonify({"status": "error", "message": "Loja não encontrada."}), 404
+
+        df = df[df["Loja"] != loja]
+        df.to_excel(data_file, index=False, engine="openpyxl")
+        return jsonify({"status": "success", "message": "Dados excluídos com sucesso."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/excluir_tudo', methods=['POST'])
+def excluir_tudo():
+    try:
+        df = pd.DataFrame(columns=["Região", "Loja", "Nome", "PDV", "Operador"])
+        df.to_excel(data_file, index=False, engine="openpyxl")
+        return jsonify({"status": "success", "message": "Todos os dados foram excluídos."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -138,4 +130,5 @@ def importar():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
