@@ -1,4 +1,11 @@
+<<<<<<< HEAD
 Flask
 pandas
 openpyxl
 gunicorn
+=======
+Flask
+pandas
+openpyxl
+gunicorn
+>>>>>>> 0600f503b0540c42445db20a2d262a149370d1b2
