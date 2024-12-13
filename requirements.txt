@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-
-=======
->>>>>>> e1dd108453552a77abec84e5dbccdc30e3b96b62
 Flask
 pandas
 openpyxl
