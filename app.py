@@ -4,8 +4,6 @@ import os
 
 # Configuração do Flask
 app = Flask(__name__)
-
-# Configuração do Banco de Dados (Substitua com a URL fornecida)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://matheus_pereira_da_silva_user:Jk1p0fmNU7Nxe4iUfn0pxD5OrzOdcrLh@dpg-cte54bt2ng1s73d8esn0-a.oregon-postgres.render.com/matheus_pereira_da_silva'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -19,6 +17,25 @@ class Loja(db.Model):
     pdv = db.Column(db.String(100), nullable=False)
     operador = db.Column(db.String(100), nullable=True)
 
+# Função de inicialização do banco
+def inicializar_banco():
+    db.create_all()
+    if Loja.query.count() == 0:
+        initial_data = [
+            {"regiao": "ZONA DA MATA", "loja": 97, "nome": "Viçosa", "pdv": "não tem cx", "operador": "Operador 1"},
+            {"regiao": "OURO PRETO", "loja": 15, "nome": "Ponte Nova", "pdv": "16", "operador": "Operador 2"},
+            {"regiao": "CARATINGA", "loja": 44, "nome": "Inhapim", "pdv": "6", "operador": "Operador 3"},
+        ]
+        for item in initial_data:
+            loja = Loja(**item)
+            db.session.add(loja)
+        db.session.commit()
+
+# Evento de inicialização
+@app.before_first_request
+def setup():
+    inicializar_banco()
+
 # Rota inicial
 @app.route('/')
 def index():
@@ -30,7 +47,7 @@ def index():
         regionais[loja.regiao].append(loja)
     return render_template('index.html', regionais=regionais)
 
-# Rota para adicionar uma nova loja
+# Outras rotas permanecem as mesmas (adicionar, editar, excluir, etc.)
 @app.route('/adicionar', methods=['POST'])
 def adicionar():
     try:
@@ -49,7 +66,6 @@ def adicionar():
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Rota para editar uma loja existente
 @app.route('/editar', methods=['POST'])
 def editar():
     try:
@@ -71,7 +87,6 @@ def editar():
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Rota para excluir uma loja
 @app.route('/excluir', methods=['POST'])
 def excluir():
     try:
@@ -89,7 +104,6 @@ def excluir():
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Rota para excluir todos os dados
 @app.route('/excluir_tudo', methods=['POST'])
 def excluir_tudo():
     try:
@@ -100,7 +114,6 @@ def excluir_tudo():
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Rota para exportar os dados
 @app.route('/exportar', methods=['GET'])
 def exportar():
     try:
@@ -109,21 +122,6 @@ def exportar():
         return jsonify(data)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
-# Inicialização do Banco de Dados
-@app.before_first_request
-def setup():
-    db.create_all()
-    if Loja.query.count() == 0:
-        initial_data = [
-            {"regiao": "ZONA DA MATA", "loja": 97, "nome": "Viçosa", "pdv": "não tem cx", "operador": "Operador 1"},
-            {"regiao": "OURO PRETO", "loja": 15, "nome": "Ponte Nova", "pdv": "16", "operador": "Operador 2"},
-            {"regiao": "CARATINGA", "loja": 44, "nome": "Inhapim", "pdv": "6", "operador": "Operador 3"},
-        ]
-        for item in initial_data:
-            loja = Loja(**item)
-            db.session.add(loja)
-        db.session.commit()
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
