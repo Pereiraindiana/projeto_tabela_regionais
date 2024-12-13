@@ -31,11 +31,6 @@ def inicializar_banco():
             db.session.add(loja)
         db.session.commit()
 
-# Evento de inicialização
-@app.before_first_request
-def setup():
-    inicializar_banco()
-
 # Rota inicial
 @app.route('/')
 def index():
@@ -47,7 +42,7 @@ def index():
         regionais[loja.regiao].append(loja)
     return render_template('index.html', regionais=regionais)
 
-# Outras rotas permanecem as mesmas (adicionar, editar, excluir, etc.)
+# Rota para adicionar uma nova loja
 @app.route('/adicionar', methods=['POST'])
 def adicionar():
     try:
@@ -66,6 +61,7 @@ def adicionar():
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# Rota para editar uma loja existente
 @app.route('/editar', methods=['POST'])
 def editar():
     try:
@@ -87,6 +83,7 @@ def editar():
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# Rota para excluir uma loja
 @app.route('/excluir', methods=['POST'])
 def excluir():
     try:
@@ -104,6 +101,7 @@ def excluir():
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# Rota para excluir todos os dados
 @app.route('/excluir_tudo', methods=['POST'])
 def excluir_tudo():
     try:
@@ -114,6 +112,7 @@ def excluir_tudo():
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# Rota para exportar os dados
 @app.route('/exportar', methods=['GET'])
 def exportar():
     try:
@@ -124,5 +123,6 @@ def exportar():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
+    inicializar_banco()  # Chamada direta para inicializar o banco
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
