@@ -17,25 +17,6 @@ class Loja(db.Model):
     pdv = db.Column(db.String(100), nullable=False)
     operador = db.Column(db.String(100), nullable=True)
 
-# Função de inicialização do banco
-def inicializar_banco():
-    db.create_all()
-    if Loja.query.count() == 0:
-        initial_data = [
-            {"regiao": "ZONA DA MATA", "loja": 97, "nome": "Viçosa", "pdv": "não tem cx", "operador": "Operador 1"},
-            {"regiao": "OURO PRETO", "loja": 15, "nome": "Ponte Nova", "pdv": "16", "operador": "Operador 2"},
-            {"regiao": "CARATINGA", "loja": 44, "nome": "Inhapim", "pdv": "6", "operador": "Operador 3"},
-        ]
-        for item in initial_data:
-            loja = Loja(**item)
-            db.session.add(loja)
-        db.session.commit()
-
-@app.before_first_request
-def criar_tabelas():
-    db.create_all()
-
-
 # Rota inicial
 @app.route('/')
 def index():
@@ -128,6 +109,8 @@ def exportar():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
-    inicializar_banco()  # Chamada direta para inicializar o banco
+    # Inicializa o banco ao iniciar o aplicativo
+    with app.app_context():
+        db.create_all()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
