@@ -1,10 +1,12 @@
-import os
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+import os
 
 # Configuração do Flask
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///dados_lojas.db'
+
+# Configuração do Banco de Dados (Substitua com a URL fornecida)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://matheus_pereira_da_silva_user:Jk1p0fmNU7Nxe4iUfn0pxD5OrzOdcrLh@dpg-cte54bt2ng1s73d8esn0-a.oregon-postgres.render.com/matheus_pereira_da_silva'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -20,7 +22,6 @@ class Loja(db.Model):
 # Rota inicial
 @app.route('/')
 def index():
-    # Obter dados agrupados por região
     regionais = {}
     lojas = Loja.query.all()
     for loja in lojas:
@@ -114,7 +115,6 @@ def exportar():
 def setup():
     db.create_all()
     if Loja.query.count() == 0:
-        # Dados iniciais
         initial_data = [
             {"regiao": "ZONA DA MATA", "loja": 97, "nome": "Viçosa", "pdv": "não tem cx", "operador": "Operador 1"},
             {"regiao": "OURO PRETO", "loja": 15, "nome": "Ponte Nova", "pdv": "16", "operador": "Operador 2"},
