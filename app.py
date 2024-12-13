@@ -1,133 +1,129 @@
 import os
-import pandas as pd
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
 
 # Configuração do Flask
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///dados_lojas.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
-# Caminho do arquivo para persistência de dados
-data_file = "dados_lojas.xlsx"
+# Modelo para a tabela "Loja"
+class Loja(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    regiao = db.Column(db.String(100), nullable=False)
+    loja = db.Column(db.String(100), unique=True, nullable=False)
+    nome = db.Column(db.String(100), nullable=False)
+    pdv = db.Column(db.String(100), nullable=False)
+    operador = db.Column(db.String(100), nullable=True)
 
-# Dados iniciais
-initial_data = [
-    {"Região": "ZONA DA MATA", "Loja": 97, "Nome": "Viçosa", "PDV": "não tem cx", "Operador": "Operador 1"},
-    {"Região": "OURO PRETO", "Loja": 15, "Nome": "Ponte Nova", "PDV": "16", "Operador": "Operador 2"},
-    {"Região": "CARATINGA", "Loja": 44, "Nome": "Inhapim", "PDV": "6", "Operador": "Operador 3"},
-]
-
-# Criar o arquivo com dados iniciais, se não existir
-if not os.path.exists(data_file):
-    df = pd.DataFrame(initial_data)
-    df.to_excel(data_file, index=False, engine="openpyxl")
-
+# Rota inicial
 @app.route('/')
 def index():
-    # Carregar dados do arquivo
-    df = pd.read_excel(data_file, engine="openpyxl")
-    grouped_data = df.groupby("Região")
-    return render_template("index.html", regionais=grouped_data)
+    # Obter dados agrupados por região
+    regionais = {}
+    lojas = Loja.query.all()
+    for loja in lojas:
+        if loja.regiao not in regionais:
+            regionais[loja.regiao] = []
+        regionais[loja.regiao].append(loja)
+    return render_template('index.html', regionais=regionais)
 
+# Rota para adicionar uma nova loja
 @app.route('/adicionar', methods=['POST'])
 def adicionar():
     try:
         data = request.get_json()
-        novo_dado = pd.DataFrame([{
-            "Região": data.get("regiao", "").strip(),
-            "Loja": str(data.get("loja")).strip(),
-            "Nome": data.get("nome", "").strip(),
-            "PDV": data.get("pdv", "").strip(),
-            "Operador": data.get("operador", "").strip()
-        }])
-
-        df = pd.read_excel(data_file, engine="openpyxl")
-        df = pd.concat([df, novo_dado], ignore_index=True)
-        df.to_excel(data_file, index=False, engine="openpyxl")
-        return jsonify({"status": "success", "message": "Dados adicionados com sucesso."})
+        nova_loja = Loja(
+            regiao=data.get("regiao").strip(),
+            loja=str(data.get("loja")).strip(),
+            nome=data.get("nome").strip(),
+            pdv=data.get("pdv").strip(),
+            operador=data.get("operador", "").strip()
+        )
+        db.session.add(nova_loja)
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Loja adicionada com sucesso."})
     except Exception as e:
+        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# Rota para editar uma loja existente
 @app.route('/editar', methods=['POST'])
 def editar():
     try:
         data = request.get_json()
-        loja = str(data.get("loja")).strip()
+        loja_id = str(data.get("loja")).strip()
+        loja = Loja.query.filter_by(loja=loja_id).first()
 
         if not loja:
-            return jsonify({"status": "error", "message": "O campo 'loja' é obrigatório."}), 400
-
-        df = pd.read_excel(data_file, engine="openpyxl")
-        df["Loja"] = df["Loja"].astype(str).str.strip()
-
-        if loja not in df["Loja"].values:
             return jsonify({"status": "error", "message": "Loja não encontrada."}), 404
 
-        df.loc[df["Loja"] == loja, ["Região", "Nome", "PDV", "Operador"]] = [
-            data.get("regiao", "").strip(),
-            data.get("nome", "").strip(),
-            data.get("pdv", "").strip(),
-            data.get("operador", "").strip()
-        ]
-        df.to_excel(data_file, index=False, engine="openpyxl")
+        loja.regiao = data.get("regiao").strip()
+        loja.nome = data.get("nome").strip()
+        loja.pdv = data.get("pdv").strip()
+        loja.operador = data.get("operador", "").strip()
+
+        db.session.commit()
         return jsonify({"status": "success", "message": "Dados editados com sucesso."})
     except Exception as e:
+        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# Rota para excluir uma loja
 @app.route('/excluir', methods=['POST'])
 def excluir():
     try:
         data = request.get_json()
-        loja = str(data.get("loja")).strip()
+        loja_id = str(data.get("loja")).strip()
+        loja = Loja.query.filter_by(loja=loja_id).first()
 
-        df = pd.read_excel(data_file, engine="openpyxl")
-        df["Loja"] = df["Loja"].astype(str).str.strip()
-
-        if loja not in df["Loja"].values:
+        if not loja:
             return jsonify({"status": "error", "message": "Loja não encontrada."}), 404
 
-        df = df[df["Loja"] != loja]
-        df.to_excel(data_file, index=False, engine="openpyxl")
-        return jsonify({"status": "success", "message": "Dados excluídos com sucesso."})
+        db.session.delete(loja)
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Loja excluída com sucesso."})
     except Exception as e:
+        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# Rota para excluir todos os dados
 @app.route('/excluir_tudo', methods=['POST'])
 def excluir_tudo():
     try:
-        df = pd.DataFrame(columns=["Região", "Loja", "Nome", "PDV", "Operador"])
-        df.to_excel(data_file, index=False, engine="openpyxl")
+        db.session.query(Loja).delete()
+        db.session.commit()
         return jsonify({"status": "success", "message": "Todos os dados foram excluídos."})
     except Exception as e:
+        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# Rota para exportar os dados
 @app.route('/exportar', methods=['GET'])
 def exportar():
     try:
-        return send_file(data_file, as_attachment=True)
+        lojas = Loja.query.all()
+        data = [{"Região": loja.regiao, "Loja": loja.loja, "Nome": loja.nome, "PDV": loja.pdv, "Operador": loja.operador} for loja in lojas]
+        return jsonify(data)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/importar', methods=['POST'])
-def importar():
-    try:
-        if 'file' not in request.files:
-            return jsonify({"status": "error", "message": "Nenhum arquivo foi enviado."}), 400
-
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({"status": "error", "message": "O nome do arquivo está vazio."}), 400
-
-        new_data = pd.read_excel(file, engine="openpyxl")
-        required_columns = {"Região", "Loja", "Nome", "PDV", "Operador"}
-        if not required_columns.issubset(new_data.columns):
-            return jsonify({"status": "error", "message": "O arquivo não contém todas as colunas necessárias."}), 400
-
-        existing_data = pd.read_excel(data_file, engine="openpyxl")
-        combined_data = pd.concat([existing_data, new_data], ignore_index=True)
-        combined_data.to_excel(data_file, index=False, engine="openpyxl")
-
-        return jsonify({"status": "success", "message": "Dados importados com sucesso."})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+# Inicialização do Banco de Dados
+@app.before_first_request
+def setup():
+    db.create_all()
+    if Loja.query.count() == 0:
+        # Dados iniciais
+        initial_data = [
+            {"regiao": "ZONA DA MATA", "loja": 97, "nome": "Viçosa", "pdv": "não tem cx", "operador": "Operador 1"},
+            {"regiao": "OURO PRETO", "loja": 15, "nome": "Ponte Nova", "pdv": "16", "operador": "Operador 2"},
+            {"regiao": "CARATINGA", "loja": 44, "nome": "Inhapim", "pdv": "6", "operador": "Operador 3"},
+        ]
+        for item in initial_data:
+            loja = Loja(**item)
+            db.session.add(loja)
+        db.session.commit()
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
