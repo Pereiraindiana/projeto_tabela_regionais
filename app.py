@@ -31,6 +31,11 @@ def inicializar_banco():
             db.session.add(loja)
         db.session.commit()
 
+@app.before_first_request
+def criar_tabelas():
+    db.create_all()
+
+
 # Rota inicial
 @app.route('/')
 def index():
