@@ -4,8 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 # Configuração do Flask
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///dados_lojas.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://usuario:senha@host:porta/database'
 db = SQLAlchemy(app)
 
 # Modelo para a tabela "Loja"
