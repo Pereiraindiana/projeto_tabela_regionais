@@ -1,116 +1,116 @@
-from flask import Flask, render_template, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, render_template, request, jsonify, send_file
+import pandas as pd
 import os
 
-# Configuração do Flask
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://matheus_pereira_da_silva_user:Jk1p0fmNU7Nxe4iUfn0pxD5OrzOdcrLh@dpg-cte54bt2ng1s73d8esn0-a.oregon-postgres.render.com/matheus_pereira_da_silva'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
 
-# Modelo para a tabela "Loja"
-class Loja(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    regiao = db.Column(db.String(100), nullable=False)
-    loja = db.Column(db.String(100), unique=True, nullable=False)
-    nome = db.Column(db.String(100), nullable=False)
-    pdv = db.Column(db.String(100), nullable=False)
-    operador = db.Column(db.String(100), nullable=True)
+# Caminho do arquivo para armazenar os dados
+data_file = "dados_lojas.xlsx"
 
-# Rota inicial
-@app.route('/')
+# Dados iniciais padrão
+initial_data = [
+    {"Região": "ZONA DA MATA", "Loja": 97, "Nome": "Viçosa", "PDV": "não tem cx", "Operador": "Operador 1"},
+    {"Região": "OURO PRETO", "Loja": 15, "Nome": "Ponte Nova", "PDV": "16", "Operador": "Operador 2"},
+    {"Região": "CARATINGA", "Loja": 44, "Nome": "Inhapim", "PDV": "6", "Operador": "Operador 3"},
+]
+
+# Cria o arquivo com dados iniciais caso ele não exista
+if not os.path.exists(data_file):
+    df = pd.DataFrame(initial_data)
+    df.to_excel(data_file, index=False, engine="openpyxl")
+
+@app.route("/")
 def index():
-    regionais = {}
-    lojas = Loja.query.all()
-    for loja in lojas:
-        if loja.regiao not in regionais:
-            regionais[loja.regiao] = []
-        regionais[loja.regiao].append(loja)
-    return render_template('index.html', regionais=regionais)
+    # Carrega os dados do arquivo Excel
+    df = pd.read_excel(data_file, engine="openpyxl")
+    grouped_data = df.groupby("Região")
+    return render_template("index.html", regionais=grouped_data)
 
-# Rota para adicionar uma nova loja
-@app.route('/adicionar', methods=['POST'])
+@app.route("/adicionar", methods=["POST"])
 def adicionar():
     try:
+        # Recebe os dados da requisição
         data = request.get_json()
-        nova_loja = Loja(
-            regiao=data.get("regiao").strip(),
-            loja=str(data.get("loja")).strip(),
-            nome=data.get("nome").strip(),
-            pdv=data.get("pdv").strip(),
-            operador=data.get("operador", "").strip()
-        )
-        db.session.add(nova_loja)
-        db.session.commit()
-        return jsonify({"status": "success", "message": "Loja adicionada com sucesso."})
+        new_data = pd.DataFrame([{
+            "Região": data.get("regiao").strip(),
+            "Loja": data.get("loja"),
+            "Nome": data.get("nome").strip(),
+            "PDV": data.get("pdv").strip(),
+            "Operador": data.get("operador", "").strip()
+        }])
+
+        # Adiciona os novos dados ao arquivo existente
+        df = pd.read_excel(data_file, engine="openpyxl")
+        df = pd.concat([df, new_data], ignore_index=True)
+        df.to_excel(data_file, index=False, engine="openpyxl")
+        return jsonify({"status": "success", "message": "Loja adicionada com sucesso!"})
     except Exception as e:
-        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Rota para editar uma loja existente
-@app.route('/editar', methods=['POST'])
+@app.route("/editar", methods=["POST"])
 def editar():
     try:
+        # Recebe os dados da requisição
         data = request.get_json()
-        loja_id = str(data.get("loja")).strip()
-        loja = Loja.query.filter_by(loja=loja_id).first()
-
-        if not loja:
+        loja_id = data.get("loja")
+        
+        # Carrega os dados existentes
+        df = pd.read_excel(data_file, engine="openpyxl")
+        
+        # Verifica se a loja existe
+        if loja_id not in df["Loja"].values:
             return jsonify({"status": "error", "message": "Loja não encontrada."}), 404
 
-        loja.regiao = data.get("regiao").strip()
-        loja.nome = data.get("nome").strip()
-        loja.pdv = data.get("pdv").strip()
-        loja.operador = data.get("operador", "").strip()
-
-        db.session.commit()
-        return jsonify({"status": "success", "message": "Dados editados com sucesso."})
+        # Atualiza os dados da loja
+        df.loc[df["Loja"] == loja_id, ["Região", "Nome", "PDV", "Operador"]] = [
+            data.get("regiao").strip(),
+            data.get("nome").strip(),
+            data.get("pdv").strip(),
+            data.get("operador", "").strip(),
+        ]
+        df.to_excel(data_file, index=False, engine="openpyxl")
+        return jsonify({"status": "success", "message": "Dados editados com sucesso!"})
     except Exception as e:
-        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Rota para excluir uma loja
-@app.route('/excluir', methods=['POST'])
+@app.route("/excluir", methods=["POST"])
 def excluir():
     try:
+        # Recebe o ID da loja para exclusão
         data = request.get_json()
-        loja_id = str(data.get("loja")).strip()
-        loja = Loja.query.filter_by(loja=loja_id).first()
+        loja_id = data.get("loja")
 
-        if not loja:
+        # Carrega os dados existentes
+        df = pd.read_excel(data_file, engine="openpyxl")
+
+        # Verifica se a loja existe
+        if loja_id not in df["Loja"].values:
             return jsonify({"status": "error", "message": "Loja não encontrada."}), 404
 
-        db.session.delete(loja)
-        db.session.commit()
-        return jsonify({"status": "success", "message": "Loja excluída com sucesso."})
+        # Remove a loja
+        df = df[df["Loja"] != loja_id]
+        df.to_excel(data_file, index=False, engine="openpyxl")
+        return jsonify({"status": "success", "message": "Loja excluída com sucesso!"})
     except Exception as e:
-        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Rota para excluir todos os dados
-@app.route('/excluir_tudo', methods=['POST'])
+@app.route("/excluir_tudo", methods=["POST"])
 def excluir_tudo():
     try:
-        db.session.query(Loja).delete()
-        db.session.commit()
-        return jsonify({"status": "success", "message": "Todos os dados foram excluídos."})
+        # Exclui todos os dados
+        df = pd.DataFrame(columns=["Região", "Loja", "Nome", "PDV", "Operador"])
+        df.to_excel(data_file, index=False, engine="openpyxl")
+        return jsonify({"status": "success", "message": "Todos os dados foram excluídos!"})
     except Exception as e:
-        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Rota para exportar os dados
-@app.route('/exportar', methods=['GET'])
+@app.route("/exportar", methods=["GET"])
 def exportar():
     try:
-        lojas = Loja.query.all()
-        data = [{"Região": loja.regiao, "Loja": loja.loja, "Nome": loja.nome, "PDV": loja.pdv, "Operador": loja.operador} for loja in lojas]
-        return jsonify(data)
+        # Envia o arquivo Excel para download
+        return send_file(data_file, as_attachment=True)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-if __name__ == '__main__':
-    # Inicializa o banco ao iniciar o aplicativo
-    with app.app_context():
-        db.create_all()
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+if __name__ == "__main__":
+    app.run(debug=True)
