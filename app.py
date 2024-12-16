@@ -1,94 +1,81 @@
-from flask import Flask, request, jsonify, render_template, send_file
+from flask import Flask, render_template, request, jsonify, send_file
 import pandas as pd
 import os
 
 app = Flask(__name__)
 
-# Caminho do arquivo Excel (dados locais)
-data_file = "dados_lojas.xlsx"
+# Caminho para o arquivo Excel
+EXCEL_FILE = "dados_lojas.xlsx"
 
-# Função para carregar ou inicializar o Excel
-def carregar_dados():
-    if os.path.exists(data_file):
-        return pd.read_excel(data_file, engine="openpyxl")
-    else:
-        # Cria um arquivo vazio com as colunas padrão
-        df = pd.DataFrame(columns=["Região", "Loja", "Nome", "PDV", "Operador"])
-        df.to_excel(data_file, index=False, engine="openpyxl")
-        return df
+# Inicializar o DataFrame
+if not os.path.exists(EXCEL_FILE):
+    df = pd.DataFrame(columns=["Região", "Loja", "Nome", "PDV", "Operador"])
+    df.to_excel(EXCEL_FILE, index=False)
+else:
+    df = pd.read_excel(EXCEL_FILE)
 
-# Página inicial - Carrega os dados e renderiza o HTML
+
+# Página principal
 @app.route("/")
 def index():
-    df = carregar_dados()
-    return render_template("index.html", data=df.to_dict(orient="records"))
+    regionais = df.groupby("Região")
+    return render_template("index.html", regionais=regionais)
 
-# Rota para adicionar nova loja
+
+# Adicionar nova loja
 @app.route("/adicionar", methods=["POST"])
 def adicionar():
-    try:
-        data = request.get_json()
-        df = carregar_dados()
-        
-        # Nova linha para o DataFrame
-        nova_loja = {
-            "Região": data.get("regiao"),
-            "Loja": str(data.get("loja")).strip(),
-            "Nome": data.get("nome"),
-            "PDV": data.get("pdv"),
-            "Operador": data.get("operador")
-        }
-        
-        # Adiciona ao DataFrame e salva
-        df = pd.concat([df, pd.DataFrame([nova_loja])], ignore_index=True)
-        df.to_excel(data_file, index=False, engine="openpyxl")
-        
-        return jsonify({"status": "success", "message": "Loja adicionada com sucesso."})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    global df
+    data = request.get_json()
+    nova_linha = {
+        "Região": data["regiao"],
+        "Loja": data["loja"],
+        "Nome": data["nome"],
+        "PDV": data["pdv"],
+        "Operador": data["operador"],
+    }
+    df = df._append(nova_linha, ignore_index=True)
+    df.to_excel(EXCEL_FILE, index=False)
+    return jsonify({"message": "Loja adicionada com sucesso!"})
 
-# Rota para importar dados de um arquivo Excel
-@app.route("/importar", methods=["POST"])
-def importar():
-    try:
-        file = request.files["file"]
-        if not file:
-            return jsonify({"status": "error", "message": "Nenhum arquivo enviado."}), 400
 
-        # Lê o arquivo enviado
-        df_novo = pd.read_excel(file, engine="openpyxl")
-        
-        # Carrega os dados existentes e concatena
-        df_existente = carregar_dados()
-        df_concatenado = pd.concat([df_existente, df_novo], ignore_index=True)
+# Excluir loja
+@app.route("/excluir", methods=["POST"])
+def excluir():
+    global df
+    data = request.get_json()
+    loja = data["loja"]
+    df = df[df["Loja"] != loja]
+    df.to_excel(EXCEL_FILE, index=False)
+    return jsonify({"message": "Loja excluída com sucesso!"})
 
-        # Remove duplicatas e salva
-        df_concatenado.drop_duplicates(subset=["Loja"], keep="last", inplace=True)
-        df_concatenado.to_excel(data_file, index=False, engine="openpyxl")
 
-        return jsonify({"status": "success", "message": "Dados importados com sucesso."})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+# Excluir todos os dados
+@app.route("/excluir_tudo", methods=["POST"])
+def excluir_tudo():
+    global df
+    df = pd.DataFrame(columns=["Região", "Loja", "Nome", "PDV", "Operador"])
+    df.to_excel(EXCEL_FILE, index=False)
+    return jsonify({"message": "Todos os dados foram excluídos!"})
 
-# Rota para exportar os dados atuais em Excel
+
+# Exportar Excel
 @app.route("/exportar", methods=["GET"])
 def exportar():
-    try:
-        df = carregar_dados()
-        export_path = "dados_exportados.xlsx"
-        df.to_excel(export_path, index=False, engine="openpyxl")
-        return send_file(export_path, as_attachment=True)
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    return send_file(EXCEL_FILE, as_attachment=True)
 
-# Rota para exibir os dados atualizados no painel
-@app.route("/dados", methods=["GET"])
-def dados():
-    try:
-        df = carregar_dados()
-        return jsonify(df.to_dict(orient="records"))
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Importar dados
+@app.route("/importar", methods=["POST"])
+def importar():
+    global df
+    file = request.files["file"]
+    if file:
+        df = pd.read_excel(file)
+        df.to_excel(EXCEL_FILE, index=False)
+        return jsonify({"message": "Dados importados com sucesso!"})
+    return jsonify({"message": "Erro ao importar o arquivo"}), 400
+
 
 if __name__ == "__main__":
     app.run(debug=True)
