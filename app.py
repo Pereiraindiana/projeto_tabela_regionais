@@ -27,50 +27,16 @@ def index():
 def adicionar():
     global df
     data = request.get_json()
-
-    # Validação de campos
-    if not all(key in data for key in ["regiao", "loja", "nome", "pdv", "operador"]):
-        return jsonify({"message": "Todos os campos são obrigatórios."}), 400
-
     nova_linha = {
-        "Região": data["regiao"],
-        "Loja": data["loja"],
-        "Nome": data["nome"],
-        "PDV": data["pdv"],
-        "Operador": data["operador"],
+        "Região": data["regiao"].strip(),
+        "Loja": data["loja"].strip(),
+        "Nome": data["nome"].strip(),
+        "PDV": data["pdv"].strip(),
+        "Operador": data["operador"].strip(),
     }
-    nova_linha_df = pd.DataFrame([nova_linha])
-    df = pd.concat([df, nova_linha_df], ignore_index=True)
+    df = pd.concat([df, pd.DataFrame([nova_linha])], ignore_index=True)
     df.to_excel(EXCEL_FILE, index=False)
     return jsonify({"message": "Loja adicionada com sucesso!"})
-
-
-# Editar loja
-@app.route("/editar", methods=["POST"])
-def editar():
-    global df
-    data = request.get_json()
-
-    # Validação de campos
-    if not all(key in data for key in ["regiao", "loja", "nome", "pdv", "operador"]):
-        return jsonify({"message": "Todos os campos são obrigatórios."}), 400
-
-    loja = data["loja"]
-
-    # Encontrar a linha com a loja correspondente
-    linha = df[df["Loja"] == loja]
-    if linha.empty:
-        return jsonify({"message": "Loja não encontrada."}), 404
-
-    # Atualizar os valores
-    df.loc[df["Loja"] == loja, "Região"] = data["regiao"]
-    df.loc[df["Loja"] == loja, "Nome"] = data["nome"]
-    df.loc[df["Loja"] == loja, "PDV"] = data["pdv"]
-    df.loc[df["Loja"] == loja, "Operador"] = data["operador"]
-
-    # Salvar no arquivo
-    df.to_excel(EXCEL_FILE, index=False)
-    return jsonify({"message": "Loja editada com sucesso!"})
 
 
 # Excluir loja
@@ -78,14 +44,41 @@ def editar():
 def excluir():
     global df
     data = request.get_json()
-    loja = data.get("loja")
+    loja = data["loja"].strip().lower()  # Ignorar espaços e diferenças de maiúsculas/minúsculas
+    
+    # Filtrar e manter apenas as lojas que não são iguais ao valor informado
+    original_len = len(df)
+    df = df[~df["Loja"].str.strip().str.lower().eq(loja)]
 
-    if not loja:
-        return jsonify({"message": "O campo 'loja' é obrigatório."}), 400
+    if len(df) < original_len:
+        df.to_excel(EXCEL_FILE, index=False)
+        return jsonify({"message": "Loja excluída com sucesso!"})
+    else:
+        return jsonify({"message": "Erro: Loja não encontrada."}), 404
 
-    df = df[df["Loja"] != loja]
+
+# Editar loja
+@app.route("/editar", methods=["POST"])
+def editar():
+    global df
+    data = request.get_json()
+    loja = data["loja"].strip().lower()  # Normalizar a busca
+
+    # Encontrar a linha com a loja correspondente
+    mask = df["Loja"].str.strip().str.lower() == loja
+
+    if not mask.any():
+        return jsonify({"message": "Erro: Loja não encontrada."}), 404
+
+    # Atualizar os valores
+    df.loc[mask, "Região"] = data["regiao"].strip()
+    df.loc[mask, "Nome"] = data["nome"].strip()
+    df.loc[mask, "PDV"] = data["pdv"].strip()
+    df.loc[mask, "Operador"] = data["operador"].strip()
+
+    # Salvar no arquivo
     df.to_excel(EXCEL_FILE, index=False)
-    return jsonify({"message": "Loja excluída com sucesso!"})
+    return jsonify({"message": "Loja editada com sucesso!"})
 
 
 # Excluir todos os dados
@@ -107,21 +100,12 @@ def exportar():
 @app.route("/importar", methods=["POST"])
 def importar():
     global df
-    file = request.files.get("file")
-
-    if file and file.filename.endswith(".xlsx"):
-        try:
-            new_df = pd.read_excel(file)
-            if set(new_df.columns) == {"Região", "Loja", "Nome", "PDV", "Operador"}:
-                df = new_df
-                df.to_excel(EXCEL_FILE, index=False)
-                return jsonify({"message": "Dados importados com sucesso!"})
-            else:
-                return jsonify({"message": "O arquivo possui colunas inválidas."}), 400
-        except Exception as e:
-            return jsonify({"message": f"Erro ao processar o arquivo: {str(e)}"}), 400
-
-    return jsonify({"message": "Envie um arquivo Excel válido (.xlsx)."}), 400
+    file = request.files["file"]
+    if file:
+        df = pd.read_excel(file)
+        df.to_excel(EXCEL_FILE, index=False)
+        return jsonify({"message": "Dados importados com sucesso!"})
+    return jsonify({"message": "Erro ao importar o arquivo"}), 400
 
 
 if __name__ == "__main__":
