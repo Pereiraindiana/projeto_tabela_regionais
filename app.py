@@ -2,14 +2,13 @@ import pandas as pd
 import psycopg2
 from psycopg2 import sql
 
-# Função principal
 def importar_dados(arquivo_csv):
     """
     Importa dados de um arquivo CSV para um banco PostgreSQL.
     Realiza tratamento de valores nulos e duplicados antes da inserção.
     """
-    # 1. Carregar os dados do arquivo CSV
     try:
+        # 1. Carregar os dados do arquivo CSV
         df = pd.read_csv(arquivo_csv)
         print("Arquivo carregado com sucesso!")
     except Exception as e:
@@ -29,10 +28,10 @@ def importar_dados(arquivo_csv):
     try:
         print("Conectando ao banco de dados...")
         conn = psycopg2.connect(
-            host="SEU_HOST",       # Exemplo: 'localhost' ou URL do banco
-            database="SEU_BANCO",  # Nome do banco de dados
-            user="SEU_USUARIO",    # Usuário do banco
-            password="SUA_SENHA"   # Senha do banco
+            host="dpg-cte54bt2ng1s73d8esn0-a",       # Seu host
+            database="matheus_pereira_da_silva",    # Nome do banco de dados
+            user="matheus_pereira_da_silva_user",   # Usuário
+            password="Jk1p0fmNU7Nxe4iUfn0pxD5OrzOdcrLh"  # Senha
         )
         cursor = conn.cursor()
 
@@ -54,14 +53,16 @@ def importar_dados(arquivo_csv):
 
     except Exception as e:
         print(f"Erro durante a importação dos dados: {e}")
-
     finally:
         # Fechar conexão com o banco
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
-        print("Conexão com o banco encerrada.")
+        try:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+            print("Conexão com o banco encerrada.")
+        except Exception as e:
+            print(f"Erro ao fechar a conexão: {e}")
 
 # Chamada da função
 if __name__ == "__main__":
