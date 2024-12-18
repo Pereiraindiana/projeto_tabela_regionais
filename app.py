@@ -14,13 +14,13 @@ db = SQLAlchemy(app)
 # Modelo da tabela no banco de dados
 class Loja(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    regiao = db.Column(db.String(50), nullable=False)
-    loja = db.Column(db.String(50), unique=True, nullable=False)
+    regiao = db.Column(db.String(100), nullable=False)
+    loja = db.Column(db.String(50), nullable=False)
     nome = db.Column(db.String(100), nullable=False)
     pdv = db.Column(db.String(50), nullable=False)
-    operador = db.Column(db.String(50), nullable=False)
+    operador = db.Column(db.String(100), nullable=False)
 
-# Cria a tabela no banco de dados
+# Criação da tabela no banco
 with app.app_context():
     db.create_all()
 
@@ -39,9 +39,9 @@ def adicionar():
     data = request.get_json()
     nova_loja = Loja(
         regiao=data['regiao'].strip(),
-        loja=data['loja'].strip(),
+        loja=str(data['loja']).strip(),
         nome=data['nome'].strip(),
-        pdv=data['pdv'].strip(),
+        pdv=str(data['pdv']).strip(),
         operador=data['operador'].strip(),
     )
     db.session.add(nova_loja)
@@ -52,10 +52,9 @@ def adicionar():
 @app.route("/excluir", methods=["POST"])
 def excluir():
     data = request.get_json()
-    loja = Loja.query.filter_by(loja=data['loja'].strip()).first()
+    loja = Loja.query.filter_by(loja=str(data['loja']).strip()).first()
     if not loja:
         return jsonify({"message": "Erro: Loja não encontrada."}), 404
-
     db.session.delete(loja)
     db.session.commit()
     return jsonify({"message": "Loja excluída com sucesso!"})
@@ -64,13 +63,13 @@ def excluir():
 @app.route("/editar", methods=["POST"])
 def editar():
     data = request.get_json()
-    loja = Loja.query.filter_by(loja=data['loja'].strip()).first()
+    loja = Loja.query.filter_by(loja=str(data['loja']).strip()).first()
     if not loja:
         return jsonify({"message": "Erro: Loja não encontrada."}), 404
 
     loja.regiao = data['regiao'].strip()
     loja.nome = data['nome'].strip()
-    loja.pdv = data['pdv'].strip()
+    loja.pdv = str(data['pdv']).strip()
     loja.operador = data['operador'].strip()
     db.session.commit()
     return jsonify({"message": "Loja editada com sucesso!"})
@@ -90,27 +89,28 @@ def importar():
         return jsonify({"message": "Erro: Nenhum arquivo enviado."}), 400
 
     try:
-        # Ler a planilha com pandas
+        # Ler a planilha Excel com pandas
         df = pd.read_excel(file)
 
-        # Iterar sobre os dados e salvar no banco
+        # Iterar sobre os dados e inserir no banco
         for _, row in df.iterrows():
+            # Tratar dados nulos e converter para string
             nova_loja = Loja(
-                regiao=row["Região"],
-                loja=row["Loja"],
-                nome=row["Nome"],
-                pdv=row["PDV"],
-                operador=row["Operador"],
+                regiao=str(row["Região"]).strip(),
+                loja=str(row["Loja"]).strip(),
+                nome=str(row["Nome"]).strip(),
+                pdv=str(row["PDV"]).strip(),
+                operador=str(row["Operador"]).strip(),
             )
             db.session.add(nova_loja)
 
-        # Confirmar as alterações no banco
         db.session.commit()
         return jsonify({"message": "Dados importados com sucesso!"})
     except Exception as e:
+        db.session.rollback()
         return jsonify({"message": f"Erro ao importar dados: {str(e)}"}), 500
 
-# Exportar para Excel (opcional)
+# Exportar os dados para Excel (Backup)
 @app.route("/exportar", methods=["GET"])
 def exportar():
     lojas = Loja.query.all()
@@ -120,7 +120,7 @@ def exportar():
     ]
     df = pd.DataFrame(dados)
     df.to_excel("backup_lojas.xlsx", index=False)
-    return jsonify({"message": "Backup exportado para backup_lojas.xlsx!"})
+    return jsonify({"message": "Backup exportado com sucesso!"})
 
 if __name__ == "__main__":
     app.run(debug=True)
