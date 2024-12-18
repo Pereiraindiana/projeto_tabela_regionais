@@ -1,105 +1,97 @@
-from flask import Flask, render_template, request, jsonify, send_file
-import pandas as pd
-import os
+from flask import Flask, render_template, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-# Caminho para o arquivo Excel
-EXCEL_FILE = "dados_lojas.xlsx"
+# Configuração do Banco de Dados PostgreSQL
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://matheus_pereira_da_silva_user:Jk1p0fmNU7Nxe4iUfn0pxD5OrzOdcrLh@dpg-cte54bt2ng1s73d8esn0-a/matheus_pereira_da_silva'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Função para carregar os dados
-def load_data():
-    if not os.path.exists(EXCEL_FILE):
-        df = pd.DataFrame(columns=["Região", "Loja", "Nome", "PDV", "Operador"])
-        df.to_excel(EXCEL_FILE, index=False)
-    else:
-        df = pd.read_excel(EXCEL_FILE)
-    return df
+db = SQLAlchemy(app)
 
-# Carregar o DataFrame
-df = load_data()
+# Modelo da tabela no banco de dados
+class Loja(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    regiao = db.Column(db.String(50), nullable=False)
+    loja = db.Column(db.String(50), unique=True, nullable=False)
+    nome = db.Column(db.String(100), nullable=False)
+    pdv = db.Column(db.String(50), nullable=False)
+    operador = db.Column(db.String(50), nullable=False)
+
+# Cria a tabela no banco de dados
+with app.app_context():
+    db.create_all()
 
 # Página principal
 @app.route("/")
 def index():
-    global df
-    regionais = df.groupby("Região")
-    return render_template("index.html", regionais=regionais)
+    regionais = Loja.query.all()
+    regionais_agrupados = {}
+    for loja in regionais:
+        regionais_agrupados.setdefault(loja.regiao, []).append(loja)
+    return render_template("index.html", regionais=regionais_agrupados)
 
 # Adicionar nova loja
 @app.route("/adicionar", methods=["POST"])
 def adicionar():
-    global df
     data = request.get_json()
-    nova_linha = {
-        "Região": data["regiao"].strip(),
-        "Loja": str(data["loja"]).strip(),
-        "Nome": data["nome"].strip(),
-        "PDV": data["pdv"].strip(),
-        "Operador": data["operador"].strip(),
-    }
-    df = pd.concat([df, pd.DataFrame([nova_linha])], ignore_index=True)
-    df.to_excel(EXCEL_FILE, index=False)
+    nova_loja = Loja(
+        regiao=data['regiao'].strip(),
+        loja=data['loja'].strip(),
+        nome=data['nome'].strip(),
+        pdv=data['pdv'].strip(),
+        operador=data['operador'].strip(),
+    )
+    db.session.add(nova_loja)
+    db.session.commit()
     return jsonify({"message": "Loja adicionada com sucesso!"})
 
 # Excluir loja
 @app.route("/excluir", methods=["POST"])
 def excluir():
-    global df
     data = request.get_json()
-    loja = str(data["loja"]).strip()
-    
-    if loja not in df["Loja"].astype(str).values:
+    loja = Loja.query.filter_by(loja=data['loja'].strip()).first()
+    if not loja:
         return jsonify({"message": "Erro: Loja não encontrada."}), 404
-    
-    df = df[df["Loja"].astype(str) != loja]
-    df.to_excel(EXCEL_FILE, index=False)
+
+    db.session.delete(loja)
+    db.session.commit()
     return jsonify({"message": "Loja excluída com sucesso!"})
 
 # Editar loja
 @app.route("/editar", methods=["POST"])
 def editar():
-    global df
     data = request.get_json()
-    loja = str(data["loja"]).strip()
-    
-    if loja not in df["Loja"].astype(str).values:
+    loja = Loja.query.filter_by(loja=data['loja'].strip()).first()
+    if not loja:
         return jsonify({"message": "Erro: Loja não encontrada."}), 404
 
-    # Editar os valores
-    mask = df["Loja"].astype(str) == loja
-    df.loc[mask, "Região"] = data["regiao"].strip()
-    df.loc[mask, "Nome"] = data["nome"].strip()
-    df.loc[mask, "PDV"] = data["pdv"].strip()
-    df.loc[mask, "Operador"] = data["operador"].strip()
-
-    # Salvar no Excel
-    df.to_excel(EXCEL_FILE, index=False)
+    loja.regiao = data['regiao'].strip()
+    loja.nome = data['nome'].strip()
+    loja.pdv = data['pdv'].strip()
+    loja.operador = data['operador'].strip()
+    db.session.commit()
     return jsonify({"message": "Loja editada com sucesso!"})
 
 # Excluir todos os dados
 @app.route("/excluir_tudo", methods=["POST"])
 def excluir_tudo():
-    global df
-    df = pd.DataFrame(columns=["Região", "Loja", "Nome", "PDV", "Operador"])
-    df.to_excel(EXCEL_FILE, index=False)
+    db.session.query(Loja).delete()
+    db.session.commit()
     return jsonify({"message": "Todos os dados foram excluídos!"})
 
-# Exportar Excel
+# Exportar para Excel (opcional, se quiser backups)
 @app.route("/exportar", methods=["GET"])
 def exportar():
-    return send_file(EXCEL_FILE, as_attachment=True)
-
-# Importar dados
-@app.route("/importar", methods=["POST"])
-def importar():
-    global df
-    file = request.files["file"]
-    if file:
-        df = pd.read_excel(file)
-        df.to_excel(EXCEL_FILE, index=False)
-        return jsonify({"message": "Dados importados com sucesso!"})
-    return jsonify({"message": "Erro ao importar o arquivo"}), 400
+    import pandas as pd
+    lojas = Loja.query.all()
+    dados = [
+        {"Região": loja.regiao, "Loja": loja.loja, "Nome": loja.nome, "PDV": loja.pdv, "Operador": loja.operador}
+        for loja in lojas
+    ]
+    df = pd.DataFrame(dados)
+    df.to_excel("backup_lojas.xlsx", index=False)
+    return jsonify({"message": "Backup exportado para backup_lojas.xlsx!"})
 
 if __name__ == "__main__":
     app.run(debug=True)
