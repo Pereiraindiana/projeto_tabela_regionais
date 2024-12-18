@@ -30,6 +30,31 @@
         <!-- Input para filtrar os dados -->
         <input type="text" id="filter" class="form-control mb-3" placeholder="Filtrar por qualquer dado...">
 
+        <!-- Formulário para adicionar novos dados -->
+        <div id="add-form" class="mb-5">
+            <h3>Adicionar Nova Loja</h3>
+            <form id="data-form">
+                <div class="row">
+                    <div class="col-md-3">
+                        <input type="text" id="regiao" class="form-control" placeholder="Região" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="number" id="loja" class="form-control" placeholder="Loja" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" id="nome" class="form-control" placeholder="Nome da Loja" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" id="pdv" class="form-control" placeholder="PDV" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" id="operador" class="form-control" placeholder="Operador" required>
+                    </div>
+                </div>
+                <button type="button" id="add-data" class="btn btn-primary mt-3">Adicionar</button>
+            </form>
+        </div>
+
         <!-- Tabelas organizadas por regionais -->
         {% for regiao, grupo in regionais.items() %}
         <div class="regional-container">
@@ -64,5 +89,100 @@
         </div>
         {% endfor %}
     </div>
+
+    <script>
+        $(document).ready(function() {
+            // Filtrar os dados na tabela
+            $("#filter").on("input", function() {
+                var value = $(this).val().toLowerCase();
+                $(".regional-container").each(function() {
+                    var found = false;
+                    $(this).find("tbody tr").each(function() {
+                        var match = $(this).text().toLowerCase().indexOf(value) > -1;
+                        $(this).toggle(match);
+                        if (match) found = true;
+                    });
+                    $(this).toggle(found);
+                });
+            });
+
+            // Adicionar novo dado
+            $("#add-data").click(function() {
+                var regiao = $("#regiao").val();
+                var loja = $("#loja").val();
+                var nome = $("#nome").val();
+                var pdv = $("#pdv").val();
+                var operador = $("#operador").val();
+
+                if (regiao && loja && nome && pdv && operador) {
+                    $.ajax({
+                        url: "/adicionar",
+                        type: "POST",
+                        contentType: "application/json",
+                        data: JSON.stringify({ regiao, loja, nome, pdv, operador }),
+                        success: function(response) {
+                            alert(response.message);
+                            location.reload();
+                        },
+                        error: function(xhr) {
+                            alert("Erro: " + xhr.responseJSON.message);
+                        }
+                    });
+                } else {
+                    alert("Por favor, preencha todos os campos.");
+                }
+            });
+
+            // Excluir dado
+            $(document).on("click", ".delete-btn", function() {
+                var loja = $(this).data("loja");
+
+                if (confirm("Tem certeza que deseja excluir esta loja?")) {
+                    $.ajax({
+                        url: "/excluir",
+                        type: "POST",
+                        contentType: "application/json",
+                        data: JSON.stringify({ loja }),
+                        success: function(response) {
+                            alert(response.message);
+                            location.reload();
+                        },
+                        error: function(xhr) {
+                            alert("Erro: " + xhr.responseJSON.message);
+                        }
+                    });
+                }
+            });
+
+            // Editar dado
+            $(document).on("click", ".edit-btn", function() {
+                var loja = $(this).data("loja");
+                var row = $(this).closest("tr");
+
+                var regiao = prompt("Nova Região", row.find("td:nth-child(1)").text());
+                var nome = prompt("Novo Nome", row.find("td:nth-child(3)").text());
+                var pdv = prompt("Novo PDV", row.find("td:nth-child(4)").text());
+                var operador = prompt("Novo Operador", row.find("td:nth-child(5)").text());
+
+                if (regiao && nome && pdv && operador) {
+                    $.ajax({
+                        url: "/editar",
+                        type: "POST",
+                        contentType: "application/json",
+                        data: JSON.stringify({ loja, regiao, nome, pdv, operador }),
+                        success: function(response) {
+                            alert(response.message);
+                            location.reload();
+                        },
+                        error: function(xhr) {
+                            alert("Erro: " + xhr.responseJSON.message);
+                        }
+                    });
+                } else {
+                    alert("Todos os campos devem ser preenchidos.");
+                }
+            });
+        });
+    </script>
 </body>
 </html>
