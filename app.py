@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+import pandas as pd
+import os
 
 app = Flask(__name__)
 
@@ -80,10 +82,37 @@ def excluir_tudo():
     db.session.commit()
     return jsonify({"message": "Todos os dados foram excluídos!"})
 
-# Exportar para Excel (opcional, se quiser backups)
+# Importar dados de uma planilha Excel
+@app.route("/importar", methods=["POST"])
+def importar():
+    file = request.files["file"]
+    if not file:
+        return jsonify({"message": "Erro: Nenhum arquivo enviado."}), 400
+
+    try:
+        # Ler a planilha com pandas
+        df = pd.read_excel(file)
+
+        # Iterar sobre os dados e salvar no banco
+        for _, row in df.iterrows():
+            nova_loja = Loja(
+                regiao=row["Região"],
+                loja=row["Loja"],
+                nome=row["Nome"],
+                pdv=row["PDV"],
+                operador=row["Operador"],
+            )
+            db.session.add(nova_loja)
+
+        # Confirmar as alterações no banco
+        db.session.commit()
+        return jsonify({"message": "Dados importados com sucesso!"})
+    except Exception as e:
+        return jsonify({"message": f"Erro ao importar dados: {str(e)}"}), 500
+
+# Exportar para Excel (opcional)
 @app.route("/exportar", methods=["GET"])
 def exportar():
-    import pandas as pd
     lojas = Loja.query.all()
     dados = [
         {"Região": loja.regiao, "Loja": loja.loja, "Nome": loja.nome, "PDV": loja.pdv, "Operador": loja.operador}
