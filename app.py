@@ -94,7 +94,6 @@ def importar():
 
         # Iterar sobre os dados e inserir no banco
         for _, row in df.iterrows():
-            # Tratar dados nulos e converter para string
             nova_loja = Loja(
                 regiao=str(row["Região"]).strip(),
                 loja=str(row["Loja"]).strip(),
@@ -124,4 +123,4 @@ def exportar():
 
 # Para rodar a aplicação diretamente
 if __name__ == "__main__":
-    app.run(debug=True)  # Usando o servidor Flask para rodar localmente
+    app.run(debug=True)
