@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 import pandas as pd
 import os
-from waitress import serve  # Para rodar no Windows de maneira mais compatível
 
 app = Flask(__name__)
 
@@ -125,5 +124,4 @@ def exportar():
 
 # Para rodar a aplicação diretamente
 if __name__ == "__main__":
-    # Usar o waitress no lugar do gunicorn para compatibilidade com Windows
-    serve(app, host='0.0.0.0', port=5000)  # Alterado para 'waitress'
+    app.run(debug=True)  # Usando o servidor Flask para rodar localmente
